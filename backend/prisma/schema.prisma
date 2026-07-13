@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// SQLite has no native enum type, so Role / MovementType / POStatus are
+// plain Strings constrained by application-level validation instead.
+// Role:         "PHARMACIST" | "ASSISTANT"
+// MovementType: "RECEIPT" | "DISPENSE" | "ADJUSTMENT" | "DISPOSAL"
+// POStatus:     "DRAFT" | "SENT" | "PARTIALLY_RECEIVED" | "RECEIVED" | "CANCELLED"
+
+model User {
+  id             Int             @id @default(autoincrement())
+  name           String
+  email          String          @unique
+  passwordHash   String
+  role           String
+  createdAt      DateTime        @default(now())
+  stockMovements StockMovement[]
+  purchaseOrders PurchaseOrder[]
+}
+
+model Supplier {
+  id             Int             @id @default(autoincrement())
+  name           String
+  contactPerson  String?
+  phone          String?
+  email          String?
+  address        String?
+  createdAt      DateTime        @default(now())
+  products       Product[]
+  purchaseOrders PurchaseOrder[]
+}
+
+model Product {
+  id           Int                  @id @default(autoincrement())
+  name         String
+  barcode      String               @unique
+  category     String
+  unit         String
+  unitPrice    Float
+  reorderLevel Int                  @default(10)
+  supplierId   Int?
+  supplier     Supplier?            @relation(fields: [supplierId], references: [id])
+  batches      Batch[]
+  movements    StockMovement[]
+  poItems      PurchaseOrderItem[]
+  createdAt    DateTime             @default(now())
+
+  @@index([category])
+}
+
+model Batch {
+  id             Int             @id @default(autoincrement())
+  productId      Int
+  product        Product         @relation(fields: [productId], references: [id])
+  batchNumber    String
+  quantity       Int
+  expiryDate     DateTime
+  dateReceived   DateTime        @default(now())
+  costPrice      Float
+  disposed       Boolean         @default(false)
+  disposedReason String?
+  disposedAt     DateTime?
+  movements      StockMovement[]
+  createdAt      DateTime        @default(now())
+
+  @@index([productId])
+  @@index([expiryDate])
+}
+
+model StockMovement {
+  id        Int          @id @default(autoincrement())
+  productId Int
+  product   Product      @relation(fields: [productId], references: [id])
+  batchId   Int?
+  batch     Batch?       @relation(fields: [batchId], references: [id])
+  type      String
+  quantity  Int
+  reason    String?
+  userId    Int
+  user      User         @relation(fields: [userId], references: [id])
+  createdAt DateTime     @default(now())
+
+  @@index([createdAt])
+  @@index([productId])
+}
+
+model PurchaseOrder {
+  id          Int                 @id @default(autoincrement())
+  supplierId  Int
+  supplier    Supplier            @relation(fields: [supplierId], references: [id])
+  status      String              @default("DRAFT")
+  items       PurchaseOrderItem[]
+  createdById Int
+  createdBy   User                @relation(fields: [createdById], references: [id])
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model PurchaseOrderItem {
+  id                Int           @id @default(autoincrement())
+  purchaseOrderId   Int
+  purchaseOrder     PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productId         Int
+  product           Product       @relation(fields: [productId], references: [id])
+  quantityOrdered   Int
+  quantityReceived  Int           @default(0)
+}
