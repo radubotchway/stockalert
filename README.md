@@ -114,11 +114,7 @@ Shown on the login screen for easy access:
 ## Architecture notes
 
 - **SQLite has no native enum type**, so `Role`, `MovementType`, and `POStatus` are plain `String` columns in `schema.prisma`, constrained by application-level validation in the relevant controllers rather than the database.
-- **FEFO dispensing** (`backend/src/services/fefoService.js`) is the one piece of logic every other feature depends on. It pulls a product's non-disposed batches ordered by `expiryDate ASC`, deducts from the earliest-expiring batch first, and splits across multiple batches inside a single Prisma transaction if one batch isn't enough. It's exercised directly (not just through the HTTP layer) in `tests/fefo.test.js`.
-- **Alerts** (`backend/src/services/alertService.js`) are computed on read rather than stored. A batch's expiry bucket (expired / ≤30d / ≤90d) and a product's low-stock status are derived from current data every time the dashboard, alerts page, or reports page loads, so they're never stale.
-- **Purchase order receiving** creates a new `Batch` (and a `RECEIPT` stock movement) per line item received, and only advances a PO to `RECEIVED` once every line's `quantityReceived` has caught up to its `quantityOrdered`. Partial receipts land in `PARTIALLY_RECEIVED` and can be received again later.
-- **Every stock change is logged** as a `StockMovement` (`RECEIPT`, `DISPENSE`, `ADJUSTMENT`, or `DISPOSAL`) with the acting user, quantity, and reason. This is what powers the dashboard's recent-activity list and the movement-history report.
-- **Role checks** live in Express middleware (`requireRole('PHARMACIST')`) on the backend and are mirrored in the frontend (`useAuth().isPharmacist`) purely to hide/disable UI the user is not allowed to use. The backend is the actual enforcement point.
+
 
 ## License
 
