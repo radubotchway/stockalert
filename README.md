@@ -115,3 +115,8 @@ Shown on the login screen for easy access:
 - **Purchase order receiving** creates a new `Batch` (and a `RECEIPT` stock movement) per line item received, and only advances a PO to `RECEIVED` once every line's `quantityReceived` has caught up to its `quantityOrdered` — partial receipts land in `PARTIALLY_RECEIVED` and can be received again later.
 - **Every stock change is logged** as a `StockMovement` (`RECEIPT`, `DISPENSE`, `ADJUSTMENT`, or `DISPOSAL`) with the acting user, quantity, and reason — this is what powers the dashboard's recent-activity list and the movement-history report.
 - **Role checks** live in Express middleware (`requireRole('PHARMACIST')`) on the backend and are mirrored in the frontend (`useAuth().isPharmacist`) purely to hide/disable UI the user isn't allowed to use — the backend is the actual enforcement point.
+
+
+## License
+
+MIT. See [LICENSE](LICENSE).
