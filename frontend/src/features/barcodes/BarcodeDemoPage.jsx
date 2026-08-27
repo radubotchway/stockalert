@@ -12,16 +12,16 @@ const BarcodeCard = ({ product }) => {
     try {
       JsBarcode(`#barcode-${product.id}`, product.barcode, {
         format: 'EAN13',
-        width: 2,
-        height: 60,
+        width: 3,
+        height: 90,
         fontSize: 14,
         margin: 8,
       });
     } catch {
       JsBarcode(`#barcode-${product.id}`, product.barcode, {
         format: 'CODE128',
-        width: 2,
-        height: 60,
+        width: 3,
+        height: 90,
         fontSize: 14,
         margin: 8,
       });
@@ -58,7 +58,7 @@ export const BarcodeDemoPage = () => {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Demo Barcodes</h1>
           <p className="text-sm text-slate-500">
-            Render seeded product barcodes on screen — point the Scan page camera at another device to demo scanning without physical labels.
+            Render seeded product barcodes on screen. Point the Scan page camera at another device, or print this sheet, which scans far more reliably.
           </p>
         </div>
         <button onClick={() => window.print()} className={btnSecondary}>
@@ -73,7 +73,7 @@ export const BarcodeDemoPage = () => {
         onChange={(e) => setSearch(e.target.value)}
       />
 
-      <div className="print-area grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+      <div className="print-area grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {filtered.map((p) => (
           <BarcodeCard key={p.id} product={p} />
         ))}

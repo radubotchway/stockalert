@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Link } from 'react-router-dom';
-import { ScanLine, Search, PackagePlus, PackageMinus, ClipboardList, CameraOff } from 'lucide-react';
+import { ScanLine, Search, PackagePlus, PackageMinus, ClipboardList, Camera, CameraOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { fetchProductByBarcode } from '../products/api';
 import { ProductFormModal } from '../products/ProductFormModal';
@@ -13,13 +13,32 @@ import { useAuth } from '../../context/AuthContext';
 
 const SCANNER_ID = 'stockalert-scanner';
 
+// Retail barcodes only. Narrowing the format list means ZXing spends every frame
+// on the 1D decoders instead of also trying QR, Aztec, PDF417 and friends.
+const BARCODE_FORMATS = [
+  Html5QrcodeSupportedFormats.EAN_13,
+  Html5QrcodeSupportedFormats.EAN_8,
+  Html5QrcodeSupportedFormats.UPC_A,
+  Html5QrcodeSupportedFormats.UPC_E,
+  Html5QrcodeSupportedFormats.CODE_128,
+];
+
+// 1D barcodes are wide and short, so the scan region should be too. Too small a
+// box and the bars fall outside it; too tall and it wastes decode budget.
+const scanBox = (viewW, viewH) => ({
+  width: Math.floor(Math.min(viewW * 0.92, 520)),
+  height: Math.floor(Math.min(viewH * 0.45, 220)),
+});
+
 export const ScanPage = () => {
   const { isPharmacist } = useAuth();
   const [manualBarcode, setManualBarcode] = useState('');
   const [product, setProduct] = useState(null);
   const [notFoundBarcode, setNotFoundBarcode] = useState(null);
   const [modal, setModal] = useState(null);
-  const [cameraError, setCameraError] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
+  const [scanning, setScanning] = useState(false);
+  const [starting, setStarting] = useState(false);
   const scannerRef = useRef(null);
   const lastScanned = useRef(null);
 
@@ -41,32 +60,85 @@ export const ScanPage = () => {
     }
   };
 
-  useEffect(() => {
-    let scanner;
-    try {
-      scanner = new Html5QrcodeScanner(
-        SCANNER_ID,
-        { fps: 10, qrbox: { width: 250, height: 150 }, rememberLastUsedCamera: true },
-        false
-      );
-      scanner.render(
-        (decodedText) => {
-          if (decodedText === lastScanned.current) return;
-          lastScanned.current = decodedText;
-          lookup(decodedText.replace(/\D/g, '') || decodedText);
-          setTimeout(() => {
-            lastScanned.current = null;
-          }, 2500);
-        },
-        () => {}
-      );
-      scannerRef.current = scanner;
-    } catch {
-      setCameraError(true);
-    }
+  const handleScan = (decodedText) => {
+    if (decodedText === lastScanned.current) return;
+    lastScanned.current = decodedText;
+    lookup(decodedText.replace(/\D/g, '') || decodedText);
+    setTimeout(() => {
+      lastScanned.current = null;
+    }, 2500);
+  };
 
+  const startCamera = async () => {
+    setCameraError(null);
+    setStarting(true);
+    try {
+      const cameras = await Html5Qrcode.getCameras();
+      if (!cameras.length) throw new Error('No camera was found on this device.');
+      const instance = new Html5Qrcode(SCANNER_ID, {
+        formatsToSupport: BARCODE_FORMATS,
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        verbose: false,
+      });
+      scannerRef.current = instance;
+      await instance.start(
+        cameras[0].id,
+        {
+          fps: 10,
+          qrbox: scanBox,
+          // Resolution has to go through videoConstraints. Passing it as the
+          // first argument fails: that parameter accepts a camera id string, or
+          // an object with exactly one key (facingMode or deviceId), nothing more.
+          // A 640x480 feed leaves roughly one camera pixel per bar, which cannot
+          // decode, so ask for 1280x720 and let the browser fall back if it must.
+          videoConstraints: {
+            deviceId: { exact: cameras[0].id },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        },
+        handleScan,
+        undefined
+      );
+      setScanning(true);
+    } catch (err) {
+      scannerRef.current = null;
+      // html5-qrcode rejects with bare strings as often as with Error objects,
+      // so reading .message alone silently loses the actual reason.
+      const reason = typeof err === 'string' ? err : err?.message;
+      setCameraError(reason || 'The camera could not be started.');
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const stopCamera = async () => {
+    const instance = scannerRef.current;
+    scannerRef.current = null;
+    setScanning(false);
+    if (!instance) return;
+    try {
+      await instance.stop();
+    } catch {
+      /* already stopped */
+    }
+    try {
+      instance.clear();
+    } catch {
+      /* nothing left to clear */
+    }
+  };
+
+  useEffect(() => {
     return () => {
-      scannerRef.current?.clear().catch(() => {});
+      const instance = scannerRef.current;
+      scannerRef.current = null;
+      if (instance) {
+        instance
+          .stop()
+          .then(() => instance.clear())
+          .catch(() => {});
+      }
     };
   }, []);
 
@@ -79,18 +151,36 @@ export const ScanPage = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Scan</h1>
-        <p className="text-sm text-slate-500">Point the camera at a barcode, or enter one manually — handy for demos without a webcam.</p>
+        <p className="text-sm text-slate-500">Point the camera at a barcode, or enter one manually, which is handy for demos without a webcam.</p>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
-          <p className="mb-3 flex items-center gap-2 font-semibold text-slate-800">
-            <ScanLine className="h-4 w-4" /> Camera scanner
-          </p>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="flex items-center gap-2 font-semibold text-slate-800">
+              <ScanLine className="h-4 w-4" /> Camera scanner
+            </p>
+            {scanning ? (
+              <button type="button" onClick={stopCamera} className={btnSecondary}>
+                <CameraOff className="h-4 w-4" /> Stop
+              </button>
+            ) : (
+              <button type="button" onClick={startCamera} disabled={starting} className={btnPrimary}>
+                <Camera className="h-4 w-4" /> {starting ? 'Starting...' : 'Start camera'}
+              </button>
+            )}
+          </div>
           <div id={SCANNER_ID} className="overflow-hidden rounded-lg" />
+          {!scanning && !starting && !cameraError && (
+            <p className="mt-3 text-sm text-slate-500">
+              Camera is off. Press start, then hold a barcode inside the box.
+              Printed labels scan far more reliably than a phone screen.
+            </p>
+          )}
           {cameraError && (
-            <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-700">
-              <CameraOff className="h-4 w-4" /> Camera unavailable — use manual entry instead.
+            <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-700">
+              <CameraOff className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{cameraError} Use manual entry instead.</span>
             </div>
           )}
         </div>
