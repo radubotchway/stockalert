@@ -2,6 +2,12 @@
 
 A community pharmacy inventory and expiry tracker with barcode scanning and supplier order management. Built as a commissioned full-stack project, with the domain logic modelled properly rather than sketched: FEFO stock deduction, batch-level expiry and low-stock alerting, and a full purchase-order lifecycle.
 
+<p align="center">
+  <img src="docs/scan.gif" alt="Scanning a barcode on the Scan page and instantly resolving the product, its batches and expiry status" width="800">
+  <br>
+  <em>Scanning a live EAN-13 barcode &mdash; the product, its batches and expiry status resolve instantly.</em>
+</p>
+
 ## Overview
 
 Pharmacies lose money and put patients at risk when stock silently expires on the shelf or runs out unnoticed. StockAlert gives a small pharmacy team a single place to:
@@ -14,7 +20,29 @@ Pharmacies lose money and put patients at risk when stock silently expires on th
 
 ## Screenshots
 
-_TODO: dashboard alert cards, scan page, purchase order view._
+### Dashboard
+
+Stock value, active alerts and pending orders at a glance, with expiry buckets colour-coded and 30-day movement trends.
+
+![Dashboard](docs/Dashboard.png)
+
+### Scan
+
+Opens the device camera for EAN-13 / UPC / Code-128, with manual barcode entry as a fallback so it can be demoed without a webcam.
+
+![Scan page](docs/scan_page.png)
+
+### Purchase orders
+
+Suppliers, the `Draft > Sent > Partially Received > Received` lifecycle, and one-click suggested orders for everything below its reorder level.
+
+![Purchase orders](docs/purchase_orders.png)
+
+### Reports
+
+Expiry, low-stock and date-filtered movement history, each exportable to CSV.
+
+![Reports page](docs/reports_page.png)
 
 ## Features
 
